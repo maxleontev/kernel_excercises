@@ -1,42 +1,47 @@
 #include <linux/module.h>
+#include <linux/device.h>
+#include <linux/slab.h>
 
 #include "checker.h"
 
-extern int array_sum(short *arr, size_t n);
-extern ssize_t generate_output(int sum, short *arr, size_t size, char *buf);
+void * void_ptr;
+int * int_arr_ptr;
+struct device * struct_device_ptr;
 
-int array_sum_local(short *arr, size_t n) {
-    int sum = 0;
-    int i;
-    
-    for (i = 0; i < n; i++)
-        sum += arr[i];
-    return sum;
-}
+static int __init init_mod(void) {
 
-static int __init init_solution(void) {
-    int i, sum;
-    char str_buff[500];
-    short arr[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+    extern ssize_t get_void_size(void);
+    extern void submit_void_ptr(void *p);
+    extern ssize_t get_int_array_size(void);
+    extern void submit_int_array_ptr(int *p);
+    extern void submit_struct_ptr(struct device *p);
 
-//    CHECKER_MACRO;
-    printk( KERN_INFO "Hello, solution module loaded!\n" );
+	printk( KERN_INFO "Hello, solution module loaded!\n" );
 
-    for (i=0;i<15;i++) {
-        sum = array_sum(arr, 5 + i);
-        generate_output(sum, arr, 5 + i, str_buff);
-        if (sum == array_sum_local(arr, 5 + i)) printk( KERN_INFO "%s\n", str_buff);
-        else printk( KERN_ERR "%s\n", str_buff);
-    }
+    void_ptr = kmalloc(get_void_size(), GFP_ATOMIC);
+    submit_void_ptr(void_ptr);
+
+    int_arr_ptr = kmalloc(get_int_array_size()*sizeof(int), GFP_ATOMIC);
+    submit_int_array_ptr(int_arr_ptr);
+
+    struct_device_ptr = kmalloc(sizeof(struct device), GFP_ATOMIC);
+    submit_struct_ptr(struct_device_ptr);
+
 	return 0;
 }
 
-static void __exit exit_solution(void) {
-//    CHECKER_MACRO;
-    printk( KERN_INFO "Hello, solution module leaved!\n" );
+static void __exit exit_mod(void) {
+
+    extern void checker_kfree(void *p);
+
+    checker_kfree(void_ptr);
+    checker_kfree(int_arr_ptr);
+    checker_kfree(struct_device_ptr);
+
+	printk( KERN_INFO "Hello, solution module leaved!\n" );
 }
 
-module_init(init_solution);
-module_exit(exit_solution);
+module_init(init_mod);
+module_exit(exit_mod);
 
 MODULE_LICENSE("GPL");

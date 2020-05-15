@@ -1,23 +1,28 @@
+#include <linux/slab.h>
 
-int array_sum(short *arr, size_t n) {
-    int sum = 0;
-    int i;
-    for (i = 0; i < n; i++)
-        sum += arr[i];
-    return sum;
+ssize_t get_void_size(void) {
+    return 8;
 }
 
-ssize_t generate_output(int sum, short *arr, size_t size, char *buf) {
-    int i;
-    char res_buff[500];
-    char ch_buff[17];
+void submit_void_ptr(void *p) {
 
-    res_buff[0] = '\0';
+}
 
-    for (i=0; i<size; i++) {
-        sprintf(ch_buff, " %i", arr[i]);
-        strcat(res_buff, ch_buff);
-    }
-    
-    return sprintf(buf, "%i%s", sum, res_buff);
+ssize_t get_int_array_size(void) {
+    return 5;
+}
+
+void submit_int_array_ptr(int *p) {
+
+}
+
+
+void submit_struct_ptr(struct device *p) {
+
+}
+
+void checker_kfree(void *p) {
+
+    kfree(p);
+
 }
