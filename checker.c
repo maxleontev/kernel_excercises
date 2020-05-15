@@ -1,7 +1,8 @@
 #include <linux/module.h>
 #include "checker.h"
 
-EXPORT_SYMBOL(call_me);
+EXPORT_SYMBOL(array_sum);
+EXPORT_SYMBOL(generate_output);
 
 static int __init init_checker(void) {
     printk( KERN_INFO "Hello, checker module loaded!\n" );

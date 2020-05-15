@@ -1,0 +1,2 @@
+sudo rmmod checker.ko
+sudo rmmod solution.ko
