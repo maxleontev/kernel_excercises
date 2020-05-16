@@ -1,0 +1,29 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+    "settings": {
+        "editor.detectIndentation": false,
+        "editor.tabSize" : 4,
+		"editor.insertSpaces": false,
+		"files.exclude": {
+			"*.ko": true,
+			"*.o": true,
+			"*.symvers": true,
+			"*.mod.c": true,
+			"*.cmd": true,
+			"*.order": true,
+			"*.mod": true,
+			".gitignore": true,
+			"lsm": true,
+			"insm": true,
+			"rmm": true,
+			"make_node": true
+		},
+		"editor.autoClosingBrackets": "never",
+		"editor.autoClosingOvertype": "never"
+		
+     }
+}
