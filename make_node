@@ -1,0 +1,2 @@
+sudo mknod /dev/chrdrv c 500 0
+sudo chmod a+rw /dev/chrdrv

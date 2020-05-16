@@ -1,1 +1,3 @@
 lsmod | grep -E "checker|solution"
+cat /proc/modules | grep -E "checker|solution"
+ls -l /dev | grep chrdrv

@@ -1,2 +1,5 @@
-sudo insmod checker.ko
+#!/bin/bash
+
+# sudo insmod checker.ko
 sudo insmod solution.ko
+./make_node
