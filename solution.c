@@ -1,89 +1,58 @@
+#include <linux/kobject.h>
+#include <linux/string.h>
+#include <linux/sysfs.h>
 #include <linux/module.h>
-#include <linux/fs.h>
-#include <linux/uaccess.h>
 #include <linux/init.h>
-#include <linux/slab.h>
-#include <linux/cdev.h>
 
 
-static dev_t first;
-static unsigned int count = 1;
-static int max_chr_drv_major = 500;
-static int max_chr_drv_minor = 0;
-static struct cdev *maxs_cdev;
+static int my_sys;
 
-#define MAX_DEV_NAME "maxchrdev"
-#define KBUF_SIZE (size_t) 10*PAGE_SIZE
-
-static int max_chr_drv_open(struct inode *inode, struct file *file) {
-	static int counter = 0;
-	char *kbuf = kmalloc(KBUF_SIZE, GFP_KERNEL);
-
-	file->private_data = kbuf;
-
-	printk( KERN_INFO "Opening device: %s \n", MAX_DEV_NAME);
-	counter++;
-
-	printk( KERN_INFO "counter: %d\n", counter);
-	printk( KERN_INFO "module refcounter: %d\n", module_refcount(THIS_MODULE));
-
-	return 0;
+static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+	my_sys++;
+	return sprintf(buf, "%d\n", my_sys);
 }
 
-static int max_chr_drv_release(struct inode *inode, struct file *file) {
-	char *kbuf = file->private_data;
-	printk( KERN_INFO "Releasing device: %s \n", MAX_DEV_NAME);
-	if (kbuf) kfree(kbuf);
-	kbuf = NULL;
-	file->private_data = NULL;
+static ssize_t my_sys_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
+	int ret;
 
-	return 0;
+	ret = kstrtoint(buf, 10, &my_sys);
+	if (ret < 0)
+		return ret;
+
+	return count;
 }
 
-static ssize_t max_chr_drv_read(struct file *file, char __user *buf, size_t lbuf, loff_t *ppos) {
-	char *kbuf = file->private_data;
-	int nbytes = lbuf - copy_to_user(buf, kbuf + *ppos, lbuf);
+static struct kobj_attribute my_sys_attribute = __ATTR(my_sys, 0664, my_sys_show, my_sys_store);
 
-	*ppos += nbytes;
-	printk( KERN_INFO "Reading device: %s, bytes readed = %d, ppos = %d\n", MAX_DEV_NAME, nbytes, (int) *ppos );
-	return nbytes;
-}
-
-static ssize_t max_chr_drv_write(struct file *file, const char __user *buf, size_t lbuf, loff_t *ppos) {
-	char *kbuf = file->private_data;
-	int nbytes = lbuf - copy_from_user(kbuf + *ppos, buf, lbuf);
-	*ppos += nbytes;
-
-	printk( KERN_INFO "Writing device: %s, bytes writed = %d, ppos = %d\n", MAX_DEV_NAME, nbytes, (int) *ppos );
-	return nbytes;
-}
-
-static const struct file_operations maxs_cdev_fops = {
-	.owner = THIS_MODULE,
-	.read = max_chr_drv_read,
-	.write = max_chr_drv_write,
-	.open = max_chr_drv_open,
-	.release = max_chr_drv_release
+static struct attribute *attrs[] = {
+	&my_sys_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
 };
 
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+static struct kobject *my_kobj;
+
 static int __init init_mod(void) {
+
+	int res;
+
+	my_kobj = kobject_create_and_add("my_kobject", kernel_kobj);
+	if (!my_kobj)
+		return -ENOMEM;
+
+	res = sysfs_create_group(my_kobj, &attr_group);
+	if (res) kobject_put(my_kobj);
+
 	printk( KERN_INFO "Hello, solution module loaded!\n" );
 
-	first = MKDEV (max_chr_drv_major, max_chr_drv_minor);
-	register_chrdev_region(first, count, MAX_DEV_NAME);
-
-	maxs_cdev = cdev_alloc();
-
-	cdev_init(maxs_cdev, &maxs_cdev_fops);
-	cdev_add(maxs_cdev, first, count);
-
-	return 0;
+	return res;
 }
 
 static void __exit exit_mod(void) {
-	if (maxs_cdev)
-		cdev_del (maxs_cdev);
-	unregister_chrdev_region(first, count);
+	kobject_put(my_kobj);
 	printk( KERN_INFO "Hello, solution module leaved!\n" );
 }
 

@@ -2,4 +2,4 @@
 
 # sudo insmod checker.ko
 sudo insmod solution.ko
-./make_node
+#./make_node
