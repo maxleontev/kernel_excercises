@@ -1,4 +1,8 @@
+#!/bin/bash
+#
 # sudo rmmod checker.ko
 sudo rmmod solution.ko
 
-# sudo rm /dev/chrdrv
+#sudo rm /dev/chrdrv
+sudo rm /dev/solution_node
+

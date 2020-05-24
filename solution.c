@@ -1,74 +1,95 @@
-#include <linux/kobject.h>
-#include <linux/string.h>
-#include <linux/sysfs.h>
 #include <linux/module.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
 #include <linux/init.h>
+#include <linux/slab.h>
+#include <linux/cdev.h>
 
 
-static int my_sys;
+static dev_t first;
+static unsigned int count = 1;
+static int max_chr_drv_major = 240;
+static int max_chr_drv_minor = 0;
+static struct cdev *maxs_cdev;
 
-static int a = 0;
-module_param (a, int, 0);
+#define MAX_DEV_NAME "maxchrdev"
+#define KBUF_SIZE (size_t) 10*PAGE_SIZE
+static char *kbuf; //define main single buffer for all 
+static char *msg_ptr;
 
-static int b = 0;
-module_param (b, int, 0);
+static int m_count = 0; // device access count
+static int n_count = 0; // full writed count
 
-static int c[] = {0,0,0,0,0};
-static int c_count = sizeof(c)/sizeof(c[0]);
-module_param_array (c, int, &c_count, S_IRUGO|S_IWUSR);
+static ssize_t max_chr_drv_read(struct file *file, char __user *buf, size_t lbuf, loff_t *ppos) {
+	int nbytes = 0;
 
+	sprintf(kbuf, "%d %d\n", m_count, n_count);
 
-static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
-	return sprintf(buf, "%d\n", my_sys);
+	if (*msg_ptr == 0) return 0;
+	while ( lbuf && *msg_ptr ) {
+		put_user(*(msg_ptr++), buf++);
+		lbuf--;
+    	nbytes++;
+	}
+	*ppos += nbytes;
+	printk( KERN_INFO "[kernel_mooc] Reading device: %s, bytes readed = %d, ppos = %d\n", MAX_DEV_NAME, nbytes, (int) *ppos );
+	return nbytes;
 }
 
-static ssize_t my_sys_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
-	int ret;
+static ssize_t max_chr_drv_write(struct file *file, const char __user *buf, size_t lbuf, loff_t *ppos) {
+	int nbytes = lbuf - copy_from_user(kbuf + *ppos, buf, lbuf);
+	*ppos += nbytes;
+	n_count += nbytes;
 
-	ret = kstrtoint(buf, 10, &my_sys);
-	if (ret < 0)
-		return ret;
-
-	return count;
+	printk( KERN_INFO "[kernel_mooc] Writing device: %s, bytes writed = %d, ppos = %d\n", MAX_DEV_NAME, nbytes, (int) *ppos );
+	return nbytes;
 }
 
-static struct kobj_attribute my_sys_attribute = __ATTR(my_sys, 0664, my_sys_show, my_sys_store);
+static int max_chr_drv_open(struct inode *inode, struct file *file) {
+	m_count++;
 
-static struct attribute *attrs[] = {
-	&my_sys_attribute.attr,
-	NULL,	/* need to NULL terminate the list of attributes */
+	msg_ptr = kbuf;
+
+	printk( KERN_INFO "[kernel_mooc] Opening device: %s \n", MAX_DEV_NAME);
+	printk( KERN_INFO "[kernel_mooc] m_count: %d n_count: %d\n", m_count, n_count);
+	return 0;
+}
+
+static int max_chr_drv_release(struct inode *inode, struct file *file) {
+	printk( KERN_INFO "[kernel_mooc] Releasing device: %s \n", MAX_DEV_NAME);
+	return 0;
+}
+
+static const struct file_operations maxs_cdev_fops = {
+	.owner = THIS_MODULE,
+	.read = max_chr_drv_read,
+	.write = max_chr_drv_write,
+	.open = max_chr_drv_open,
+	.release = max_chr_drv_release
 };
-
-static struct attribute_group attr_group = {
-	.attrs = attrs,
-};
-
-static struct kobject *my_kobj;
 
 static int __init init_mod(void) {
+	printk( KERN_INFO "[kernel_mooc] Hello, solution module loaded!\n" );
 
-	int res, i, arr_cnt;
+	kbuf = kmalloc(KBUF_SIZE, GFP_KERNEL);
 
-	my_kobj = kobject_create_and_add("my_kobject", kernel_kobj);
-	if (!my_kobj)
-		return -ENOMEM;
+	first = MKDEV (max_chr_drv_major, max_chr_drv_minor);
+	register_chrdev_region(first, count, MAX_DEV_NAME);
 
-	res = sysfs_create_group(my_kobj, &attr_group);
-	if (res) kobject_put(my_kobj);
+	maxs_cdev = cdev_alloc();
 
-	printk( KERN_INFO "Hello, solution module loaded!\n" );
-	arr_cnt = 0;
-	for (i=0; i < c_count; i++) {
-		arr_cnt = arr_cnt + c[i];
-	}
-	my_sys = a + b + arr_cnt;
+	cdev_init(maxs_cdev, &maxs_cdev_fops);
+	cdev_add(maxs_cdev, first, count);
 
-	return res;
+	return 0;
 }
 
 static void __exit exit_mod(void) {
-	kobject_put(my_kobj);
-	printk( KERN_INFO "Hello, solution module leaved!\n" );
+	if (maxs_cdev)
+		cdev_del (maxs_cdev);
+	unregister_chrdev_region(first, count);
+	if (kbuf) kfree(kbuf);
+	printk( KERN_INFO "[kernel_mooc] Hello, solution module leaved!\n" );
 }
 
 module_init(init_mod);

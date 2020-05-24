@@ -1,5 +1,5 @@
 #!/bin/bash
 
 # sudo insmod checker.ko
-sudo insmod solution.ko a=1 b=2 c=3,4,5,6,7
-#./make_node
+sudo insmod solution.ko
+./make_node

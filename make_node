@@ -1,2 +1,8 @@
-sudo mknod /dev/chrdrv c 500 0
-sudo chmod a+rw /dev/chrdrv
+#!/bin/bash
+
+#sudo mknod /dev/chrdrv c 500 0
+#sudo chmod a+rw /dev/chrdrv
+
+sudo mknod /dev/solution_node c 240 0
+sudo chmod a+rw /dev/solution_node
+
