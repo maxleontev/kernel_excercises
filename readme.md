@@ -6,3 +6,4 @@ Kernel modules development.
 branches:
 master - first chapter excercises.
 char_device_driver - second chapter excercises.
+dynamic_nodes_chapter - third chapter excercises and examples.
