@@ -1,0 +1,5 @@
+#!/bin/bash
+
+lsmod | grep -E "test_module"
+cat /proc/modules | grep -E "test_module"
+ls -l /dev | grep chrdrv

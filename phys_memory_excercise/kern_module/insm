@@ -1,0 +1,4 @@
+#!/bin/bash
+
+sudo insmod test_module.ko
+./chmod_node
