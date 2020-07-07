@@ -1,5 +1,4 @@
 obj-m += solution.o
-obj-m += checker.o
 
 KERN_DIR := /lib/modules/$(shell uname -r)/build
 

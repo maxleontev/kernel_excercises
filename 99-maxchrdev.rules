@@ -1,3 +1,0 @@
-# Rules file for the maxchrdev device driver
-# insert this file into /etc/udev/rules.d/
-KERNEL=="chrdrv", SUBSYSTEM=="maxchrdev", MODE="0666"

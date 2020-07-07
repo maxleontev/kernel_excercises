@@ -1,5 +1,4 @@
 #!/bin/bash
 
-# sudo insmod checker.ko
-sudo insmod solution.ko node_name="chrdrv"
-# ./make_node
+./make_node
+sudo insmod solution.ko
