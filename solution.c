@@ -19,7 +19,7 @@ static struct cdev *maxs_cdev;
 #define MAX_DEV_NAME "maxchrdev"
 #define KBUF_SIZE (size_t) 10*PAGE_SIZE
 
-static int m_count = -1; // device access count
+static unsigned char session_counter = 0; // device access counter
 
 static void kern_log(char *fmt, ...) { // arguments should be the same as for printk
 	char s[256];
@@ -27,68 +27,105 @@ static void kern_log(char *fmt, ...) { // arguments should be the same as for pr
 	va_start(args, fmt);
 	vsprintf(s, fmt, args);
 	va_end(args);
-	printk(KERN_INFO "[%s] %s\n", MAX_DEV_NAME, s); //you should add [kernel_mooc] at the beginning of the string for stepik.org debuging
+	printk(KERN_INFO "[%s] %s\n", MAX_DEV_NAME, s); // you should add [kernel_mooc] at the beginning of the string for stepik.org debuging
+}
+
+static char get_session_id(struct file *file) {
+	char *kbuf = (char *) file->private_data;
+	return kbuf[0];
 }
 
 static ssize_t max_chr_drv_read (struct file *file, char __user *buf, size_t lbuf, loff_t *ppos) {
 	char *kbuf = file->private_data;
-	int nbytes = lbuf - copy_to_user(buf, kbuf + *ppos, lbuf);
+	char *read_ptr = kbuf + *ppos;
+	int nbytes = 0;
 
+	kern_log("Session: %c, Reading func beginning: lbuf = %d, ppos = %d, file->f_pos = %d", get_session_id(file), lbuf, (int) *ppos, file->f_pos);
+
+	while (lbuf && *read_ptr) {
+		put_user(*(read_ptr++), buf++);
+		lbuf--;
+		nbytes++;
+	}
 	*ppos += nbytes;
-	kern_log("Reading, bytes readed = %d, ppos = %d", nbytes, (int) *ppos);
+
+	kern_log("Session: %c, Reading, bytes readed = %d, ppos = %d", get_session_id(file), nbytes, (int) *ppos);
 	return nbytes;
 }
 
 static ssize_t max_chr_drv_write (struct file *file, const char __user *buf, size_t lbuf, loff_t *ppos) {
 	char *kbuf = file->private_data;
-	int nbytes = lbuf - copy_from_user(kbuf + *ppos, buf, lbuf);
+	int nbytes;
+
+	kern_log("Session: %c, Writing func beginning: lbuf = %d, ppos = %d, file->f_pos = %d", get_session_id(file), lbuf, (int) *ppos, file->f_pos);
+
+	nbytes = lbuf - copy_from_user(kbuf + *ppos, buf, lbuf);
 	*ppos += nbytes;
 
-	kern_log("Writing, bytes writed = %d, ppos = %d", nbytes, (int) *ppos);
+	kern_log("Session: %c, Writing, bytes writed = %d, ppos = %d", get_session_id(file), nbytes, (int) *ppos);
 	return nbytes;
 }
 
-static loff_t max_chr_drv_lseek (struct file *file, loff_t offset, int orig) {
+static loff_t max_chr_drv_lseek (struct file *file, loff_t offset, int whence) {
     loff_t testpos;
+	int size = 0;
+	char *kbuf = file->private_data;
 
-    switch (orig) {
-        case SEEK_SET :
+	kern_log("Session: %c, Seeking func beginning: offset = %d, file->f_pos = %d, whence = %d", get_session_id(file), offset, file->f_pos, whence);
+
+	// data size calculation
+	while (size < KBUF_SIZE && *kbuf) {kbuf ++; size ++;}
+
+	kern_log("Seeking func size = %d", size);
+	
+    switch (whence) {
+        case SEEK_SET : // 0
             testpos = offset;
             break;
-        case SEEK_CUR : 
+        case SEEK_CUR : // 1
             testpos = file->f_pos + offset;
             break;
-        case SEEK_END : 
-            testpos = KBUF_SIZE + offset;
+        case SEEK_END : // 2
+            testpos = size + offset;
             break;
         default:
             return -EINVAL;
             break;
     }
 
-    if (testpos >= KBUF_SIZE) testpos = KBUF_SIZE - 1;
-    if (testpos < 0) testpos = 0;
+    if (testpos >= size)
+		testpos = size;
+    if (testpos < 0)
+		testpos = 0;
     file->f_pos = testpos;
 
-	kern_log("Seeking to %ld position", (long)testpos);
+	kern_log("Session: %c, Seeking to %ld position", get_session_id(file), (long) testpos);
 
     return testpos;
 }
 
 static int max_chr_drv_open(struct inode *inode, struct file *file) {
-
+	int i;
 	char *kbuf = kmalloc(KBUF_SIZE, GFP_KERNEL);
-	file->private_data = kbuf;
-
-	m_count++;
+	if (!kbuf) {
+		kern_log("Opening, kmalloc failed");
+		return -EFAULT;
+	}
 	
-	kern_log("Opening, m_count: %d", m_count);
+	sprintf(kbuf, "%d", session_counter++);
+	for (i=1;i<KBUF_SIZE;i++)
+		kbuf[i] = 0;
+
+	file->private_data = (void *)kbuf;	
+
+	kern_log("Opening, session id: %c * * * * * * * * * * * * * * * * * *", get_session_id(file));
 	return 0;
 }
 
 static int max_chr_drv_release(struct inode *inode, struct file *file) {
-	char *kbuf = file->private_data;
-	kern_log("Releasing");
+	void *kbuf = file->private_data;
+	kern_log("Session: %c, Releasing", get_session_id(file));
+
 	if (kbuf) kfree(kbuf);
 	kbuf = NULL;
 	file->private_data = NULL;
@@ -105,7 +142,7 @@ static const struct file_operations maxs_cdev_fops = {
 };
 
 static int __init init_mod(void) {
-	kern_log("Loaded!");
+	kern_log("Module loaded!");
 
 	first = MKDEV (max_chr_drv_major, max_chr_drv_minor);
 	register_chrdev_region(first, count, MAX_DEV_NAME);
@@ -122,7 +159,7 @@ static void __exit exit_mod(void) {
 	if (maxs_cdev)
 		cdev_del (maxs_cdev);
 	unregister_chrdev_region(first, count);
-	kern_log("Leaved!");
+	kern_log("Module leaved!");
 }
 
 module_init(init_mod);
