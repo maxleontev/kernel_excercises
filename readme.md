@@ -1,9 +1,9 @@
-# Overview
+### Overview
 This is my stepic.org lessons homeworks repository.
 
 Kernel modules development.
 
-# Branches:
+### Branches
 
 **master** - first chapter excercises.
 
@@ -14,8 +14,8 @@ Kernel modules development.
 **list_isr_ioctl_chapter** - last chapter excercises and examples.
 
 
-# Other:
+### Other
 
-**phys_momory_excercise** folder - konvertation of virtual address to physical.
+**phys_memory_excercise** folder - konvertation of virtual address to physical.
 
 This is a training task, described in phys_memory_excercise/readme.txt
