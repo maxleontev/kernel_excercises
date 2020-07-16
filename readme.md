@@ -16,6 +16,6 @@ Kernel modules development.
 
 ### Other
 
-**phys_memory_excercise** folder - konvertation of virtual address to physical.
+**phys_memory_excercise** folder - virtual address to physical translation excercise.
 
 This is a training task, described in phys_memory_excercise/readme.txt
