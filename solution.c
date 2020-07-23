@@ -1,25 +1,24 @@
+#include <linux/kobject.h>
+#include <linux/string.h>
+#include <linux/sysfs.h>
 #include <linux/module.h>
-#include <linux/fs.h>
-#include <linux/uaccess.h>
 #include <linux/init.h>
 #include <linux/slab.h>
-#include <linux/cdev.h>
+
+#include <linux/sort.h>
+
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Max Leontev"); 
-MODULE_DESCRIPTION("Linux char driver for the modules development course");
+MODULE_AUTHOR("Max Leontev");
+MODULE_DESCRIPTION("Linux module for the modules development course");
 MODULE_VERSION("0.1");
 
-static dev_t first;
-static unsigned int count = 1;
-static int max_chr_drv_major = 240;
-static int max_chr_drv_minor = 0;
-static struct cdev *maxs_cdev;
+#define MAX_DEV_NAME "maxlistmodule"
 
-#define MAX_DEV_NAME "maxchrdev"
-#define KBUF_SIZE (size_t) 10*PAGE_SIZE
+#define MAX_MODULES_COUNT 500
 
-static unsigned char session_counter = 0; // device access counter
+static char* modules_str_arr[MAX_MODULES_COUNT];
+
 
 static void kern_log(char *fmt, ...) { // arguments should be the same as for printk
 	char s[256];
@@ -30,136 +29,100 @@ static void kern_log(char *fmt, ...) { // arguments should be the same as for pr
 	printk(KERN_INFO "[%s] %s\n", MAX_DEV_NAME, s); // you should add [kernel_mooc] at the beginning of the string for stepik.org debuging
 }
 
-static char get_session_id(struct file *file) {
-	char *kbuf = (char *) file->private_data;
-	return kbuf[0];
+// Defining comparator function as per the requirement 
+static int myCompare(const void* a, const void* b) {
+    return strcmp(*(const char**)a, *(const char**)b);
 }
 
-static ssize_t max_chr_drv_read (struct file *file, char __user *buf, size_t lbuf, loff_t *ppos) {
-	char *kbuf = file->private_data;
-	char *read_ptr = kbuf + *ppos;
-	int nbytes = 0;
+// Function to sort the array 
+void str_list_sort(char* arr[], int n) { 
+	sort((void *)arr, n, sizeof(const char*), myCompare, NULL);
+} 
 
-	kern_log("Session: %c, Reading func beginning: lbuf = %d, ppos = %d, file->f_pos = %d", get_session_id(file), lbuf, (int) *ppos, file->f_pos);
+static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
 
-	while (lbuf && *read_ptr) {
-		put_user(*(read_ptr++), buf++);
-		lbuf--;
-		nbytes++;
+	int i, j=0, rt = 0;
+	struct module *m_m;
+	struct list_head *p;
+	struct list_head *head;
+	char *st;
+
+	// list cleaning
+	for (i=0; i<MAX_MODULES_COUNT; i++) {
+		st = modules_str_arr[i];
+		st[0] = 0;
 	}
-	*ppos += nbytes;
 
-	kern_log("Session: %c, Reading, bytes readed = %d, ppos = %d", get_session_id(file), nbytes, (int) *ppos);
-	return nbytes;
-}
+	kern_log("*THIS_MODULE : %p  THIS_MODULE->name : %s", THIS_MODULE, THIS_MODULE->name);
+	head = THIS_MODULE->list.prev;
 
-static ssize_t max_chr_drv_write (struct file *file, const char __user *buf, size_t lbuf, loff_t *ppos) {
-	char *kbuf = file->private_data;
-	int nbytes;
+	i=0;
 
-	kern_log("Session: %c, Writing func beginning: lbuf = %d, ppos = %d, file->f_pos = %d", get_session_id(file), lbuf, (int) *ppos, file->f_pos);
-
-	nbytes = lbuf - copy_from_user(kbuf + *ppos, buf, lbuf);
-	*ppos += nbytes;
-
-	kern_log("Session: %c, Writing, bytes writed = %d, ppos = %d", get_session_id(file), nbytes, (int) *ppos);
-	return nbytes;
-}
-
-static loff_t max_chr_drv_lseek (struct file *file, loff_t offset, int whence) {
-    loff_t testpos;
-	int size = 0;
-	char *kbuf = file->private_data;
-
-	kern_log("Session: %c, Seeking func beginning: offset = %d, file->f_pos = %d, whence = %d", get_session_id(file), offset, file->f_pos, whence);
-
-	// data size calculation
-	while (size < KBUF_SIZE && *kbuf) {kbuf ++; size ++;}
-
-	kern_log("Seeking func size = %d", size);
-	
-    switch (whence) {
-        case SEEK_SET : // 0
-            testpos = offset;
-            break;
-        case SEEK_CUR : // 1
-            testpos = file->f_pos + offset;
-            break;
-        case SEEK_END : // 2
-            testpos = size + offset;
-            break;
-        default:
-            return -EINVAL;
-            break;
-    }
-
-    if (testpos >= size)
-		testpos = size;
-    if (testpos < 0)
-		testpos = 0;
-    file->f_pos = testpos;
-
-	kern_log("Session: %c, Seeking to %ld position", get_session_id(file), (long) testpos);
-
-    return testpos;
-}
-
-static int max_chr_drv_open(struct inode *inode, struct file *file) {
-	int i;
-	char *kbuf = kmalloc(KBUF_SIZE, GFP_KERNEL);
-	if (!kbuf) {
-		kern_log("Opening, kmalloc failed");
-		return -EFAULT;
+	list_for_each(p, head) {
+		m_m = list_entry(p, struct module, list);
+		if (strcmp(m_m->name, "") != 0 && (i < MAX_MODULES_COUNT)) {
+			kern_log("i: %d, mm->name : %s", i, m_m->name);
+			sprintf(modules_str_arr[i], "%s", m_m->name);
+			i++;
+		}
 	}
-	
-	sprintf(kbuf, "%d", session_counter++);
-	for (i=1;i<KBUF_SIZE;i++)
-		kbuf[i] = 0;
 
-	file->private_data = (void *)kbuf;	
+	str_list_sort(modules_str_arr, i);
 
-	kern_log("Opening, session id: %c * * * * * * * * * * * * * * * * * *", get_session_id(file));
+	for (j=0; j<i; j++) {
+		if (j == 0)
+			rt = sprintf(buf, "%s", modules_str_arr[j]);
+		else 
+			rt = sprintf(buf, "%s\n%s", buf, modules_str_arr[j]);
+	}
+
+	return rt;
+}
+
+static ssize_t my_sys_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
 	return 0;
 }
 
-static int max_chr_drv_release(struct inode *inode, struct file *file) {
-	void *kbuf = file->private_data;
-	kern_log("Session: %c, Releasing", get_session_id(file));
+static struct kobj_attribute my_sys_attribute = __ATTR(my_sys, 0664, my_sys_show, my_sys_store);
 
-	if (kbuf) kfree(kbuf);
-	kbuf = NULL;
-	file->private_data = NULL;
-	return 0;
-}
-
-static const struct file_operations maxs_cdev_fops = {
-	.owner = THIS_MODULE,
-	.read = max_chr_drv_read,
-	.write = max_chr_drv_write,
-	.llseek = max_chr_drv_lseek,
-	.open = max_chr_drv_open,
-	.release = max_chr_drv_release
+static struct attribute *attrs[] = {
+	&my_sys_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
 };
 
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+static struct kobject *my_kobj;
+
 static int __init init_mod(void) {
-	kern_log("Module loaded!");
+	int res, i;
 
-	first = MKDEV (max_chr_drv_major, max_chr_drv_minor);
-	register_chrdev_region(first, count, MAX_DEV_NAME);
+	my_kobj = kobject_create_and_add("my_kobject", kernel_kobj);
+	if (!my_kobj) return -ENOMEM;
 
-	maxs_cdev = cdev_alloc();
+	res = sysfs_create_group(my_kobj, &attr_group);
+	if (res) kobject_put(my_kobj);
 
-	cdev_init(maxs_cdev, &maxs_cdev_fops);
-	cdev_add(maxs_cdev, first, count);
+	for (i=0; i<MAX_MODULES_COUNT; i++)
+		modules_str_arr[i] = (char *) kmalloc(PAGE_SIZE, GFP_ATOMIC);
 
-	return 0;
+	kern_log("Loaded!");
+	return res;
 }
 
 static void __exit exit_mod(void) {
-	if (maxs_cdev)
-		cdev_del (maxs_cdev);
-	unregister_chrdev_region(first, count);
-	kern_log("Module leaved!");
+	int i;
+
+	kobject_put(my_kobj);
+
+	for (i=0; i<MAX_MODULES_COUNT; i++) {
+		if (modules_str_arr[i])
+			kfree(modules_str_arr[i]);
+	}
+
+	kern_log("Leaved!");
 }
 
 module_init(init_mod);
